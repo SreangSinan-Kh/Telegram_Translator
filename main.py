@@ -1,12 +1,12 @@
 import telebot
 from telebot import types
-from googletrans import Translator
+from deep_translator import GoogleTranslator  # <--- ប្តូរត្រង់នេះ
 from flask import Flask
 from threading import Thread
 import os
 
 # ==========================================
-# ១. ផ្នែក KEEP ALIVE (សម្រាប់ RENDER & UPTIMEROBOT)
+# ១. ផ្នែក KEEP ALIVE
 # ==========================================
 app = Flask('')
 
@@ -22,12 +22,12 @@ def keep_alive():
     t.start()
 
 # ==========================================
-# ២. ការកំណត់ BOT (CONFIGURATION)
+# ២. ការកំណត់ BOT
 # ==========================================
-# យក Token ពី Environment Variable (សុវត្ថិភាពជាង) ឬដាក់ផ្ទាល់ក៏បាន
 API_TOKEN = os.environ.get('BOT_TOKEN', '8223217940:AAH1tHD72PojpV0f4VIkzTnUwePpyxuL9Og') 
 bot = telebot.TeleBot(API_TOKEN)
-translator = Translator()
+
+# មិនបាច់បង្កើត object translator ទុកមុនទេ យើងហៅប្រើផ្ទាល់តែម្តង
 
 user_preferences = {} 
 
@@ -104,15 +104,18 @@ def handle_query(call):
 def handle_text(message):
     dest = user_preferences.get(message.chat.id, 'km')
     try:
-        translated = translator.translate(message.text, dest=dest)
+        # <--- កន្លែងកែថ្មី ប្រើ deep-translator
+        translated_text = GoogleTranslator(source='auto', target=dest).translate(message.text)
+        
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔄 ប្តូរភាសា", callback_data='menu_translate'))
-        bot.reply_to(message, f"🔤 **បកប្រែ ({LANGUAGES_MAP.get(dest)}):**\n{translated.text}", parse_mode='Markdown', reply_markup=markup)
-    except Exception:
+        bot.reply_to(message, f"🔤 **បកប្រែ ({LANGUAGES_MAP.get(dest)}):**\n{translated_text}", parse_mode='Markdown', reply_markup=markup)
+    except Exception as e:
+        print(e)
         bot.reply_to(message, "Error translating.")
 
 # ==========================================
 # ៥. RUN SERVER & BOT
 # ==========================================
-keep_alive() # ដំណើរការ Web Server
-bot.infinity_polling() # ដំណើរការ Bot
+keep_alive()
+bot.infinity_polling()

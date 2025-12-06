@@ -32,7 +32,7 @@ API_TOKEN = os.environ.get('BOT_TOKEN', '8223217940:AAH1tHD72PojpV0f4VIkzTnUwePp
 bot = telebot.TeleBot(API_TOKEN)
 
 # ដាក់ Link រូបភាពសម្រាប់ Dashboard (បងអាចប្តូរ Link នេះតាមចិត្ត)
-BANNER_IMAGE_URL = "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?q=80&w=1470&auto=format&fit=crop"
+BANNER_IMAGE_URL = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEili8wBjfGex4X3AizfLATOq2G3joXpZRM15nZv191_dIZfSwhe3_0dolOpI5hmCvl9epB65IcvDOj4aeqt2cyo8PtwUEgvzOm2BIdvQhvp2QY4HT0-MgGpwPznPnfYxHuTmA8JbPlJU6TdYRuaF80qEqgFHoPISsYLRA2IQbwpdzN5WJJorx9cAkv2FQXQ/s16000/photo_2025-12-07_00-59-36.jpg"
 
 user_preferences = {} 
 
@@ -217,4 +217,5 @@ try:
     bot.infinity_polling()
 except:
     pass
+
 

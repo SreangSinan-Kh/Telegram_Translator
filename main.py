@@ -1,140 +1,174 @@
-import os
-import threading
 import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
-from docx import Document
-from pypdf import PdfReader
-from deep_translator import GoogleTranslator
-from gtts import gTTS
-from flask import Flask, request
+from telebot import types
+from googletrans import Translator
 
-# ⚠️ ដាក់ Token របស់បងនៅទីនេះ
-BOT_TOKEN = '8223217940:AAH1tHD72PojpV0f4VIkzTnUwePpyxuL9Og'
-bot = telebot.TeleBot(BOT_TOKEN)
+# ==========================================
+# ១. ការកំណត់ (CONFIGURATION)
+# ==========================================
+API_TOKEN = '8223217940:AAH1tHD72PojpV0f4VIkzTnUwePpyxuL9Og'  # <--- ដាក់ Token របស់អ្នកនៅទីនេះ
+bot = telebot.TeleBot(API_TOKEN)
+translator = Translator()
 
-# Flask App សម្រាប់ឱ្យ Render ស្គាល់ថាមាន Web Service ដំណើរការ
-app = Flask(__name__)
+# ផ្ទុកទិន្នន័យអ្នកប្រើប្រាស់បណ្តោះអាសន្ន (សន្មតថាអ្នកប្រើចង់បកប្រែទៅភាសាខ្មែរជាគោល)
+user_preferences = {} 
 
-@app.route('/')
-def home():
-    return "Bot is running happy! 🚀"
-
-def run_web_server():
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
-
-# --- Logic របស់ Bot ---
-
-user_preferences = {}
-
-LANGUAGES = {
-    'km': {'name': 'ខ្មែរ 🇰🇭', 'code': 'km'},
-    'en': {'name': 'English 🇺🇸', 'code': 'en'},
-    'zh-CN': {'name': 'Chinese 🇨🇳', 'code': 'zh-CN'},
-    'th': {'name': 'Thai 🇹🇭', 'code': 'th'},
-    'fr': {'name': 'French 🇫🇷', 'code': 'fr'}
+# បញ្ជីភាសាដែលបានកែសម្រួល (ដកថៃ, បន្ថែម ជប៉ុន កូរ៉េ ឥណ្ឌា)
+LANGUAGES_MAP = {
+    'km': '🇰🇭 ខ្មែរ',
+    'en': '🇬🇧 អង់គ្លេស',
+    'ja': '🇯🇵 ជប៉ុន',   # បន្ថែម
+    'ko': '🇰🇷 កូរ៉េ',    # បន្ថែម
+    'hi': '🇮🇳 ឥណ្ឌា',   # បន្ថែម (Hindi)
+    'zh-cn': '🇨🇳 ចិន',
+    'fr': '🇫🇷 បារាំង',
+    # 'th': '🇹🇭 ថៃ'     <-- បានដកចេញ
 }
 
-def get_main_menu():
-    markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    btns = [KeyboardButton(val['name']) for val in LANGUAGES.values()]
-    markup.add(*btns)
+# ==========================================
+# ២. ផ្នែករចនា MENU / DASHBOARD
+# ==========================================
+
+def get_main_dashboard():
+    """បង្កើតផ្ទាំង Dashboard ដើម"""
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    
+    # បង្កើតប៊ូតុង
+    btn_translate = types.InlineKeyboardButton("🔤 បកប្រែអក្សរ", callback_data='menu_translate')
+    btn_photo = types.InlineKeyboardButton("📸 បកប្រែរូបភាព", callback_data='menu_photo')
+    btn_voice = types.InlineKeyboardButton("🎙️ បកប្រែសំឡេង", callback_data='menu_voice')
+    btn_info = types.InlineKeyboardButton("ℹ️ អំពី Bot", callback_data='menu_info')
+    
+    # ដាក់ប៊ូតុងចូល
+    markup.add(btn_translate, btn_photo, btn_voice, btn_info)
     return markup
 
-def get_target_lang_code(user_id):
-    lang_name = user_preferences.get(user_id, 'ខ្មែរ 🇰🇭')
-    for key, val in LANGUAGES.items():
-        if val['name'] == lang_name:
-            return val['code']
-    return 'km'
+def get_language_keyboard():
+    """បង្កើតផ្ទាំងជ្រើសរើសភាសាគោលដៅ"""
+    markup = types.InlineKeyboardMarkup(row_width=3)
+    buttons = []
+    for code, name in LANGUAGES_MAP.items():
+        buttons.append(types.InlineKeyboardButton(name, callback_data=f'set_lang_{code}'))
+    
+    markup.add(*buttons)
+    # ប៊ូតុងត្រឡប់ក្រោយ
+    markup.add(types.InlineKeyboardButton("🔙 ត្រឡប់ទៅ Dashboard", callback_data='back_home'))
+    return markup
 
-def smart_translate(text, target_lang):
-    try:
-        translator = GoogleTranslator(source='auto', target=target_lang)
-        if len(text) < 4500:
-            return translator.translate(text)
-        chunks = [text[i:i+4500] for i in range(0, len(text), 4500)]
-        return " ".join([translator.translate(chunk) for chunk in chunks])
-    except Exception as e:
-        return f"Translation Error: {e}"
+def get_back_home_btn():
+    """ប៊ូតុងត្រឡប់ទៅដើម"""
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("🔙 ត្រឡប់ទៅ Dashboard", callback_data='back_home'))
+    return markup
+
+# ==========================================
+# ៣. ដំណើរការ COMMANDS & HANDLERS
+# ==========================================
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(message, 
-                 "👋 **សួស្តី!**\nសូមជ្រើសរើសភាសាគោលដៅដែលបងចង់បកប្រែទៅ៖",
-                 parse_mode='Markdown',
-                 reply_markup=get_main_menu())
+    user_name = message.from_user.first_name
+    # កំណត់ភាសាដើមជា ខ្មែរ សម្រាប់អ្នកប្រើថ្មី
+    if message.chat.id not in user_preferences:
+        user_preferences[message.chat.id] = 'km'
 
-@bot.message_handler(func=lambda message: message.text in [val['name'] for val in LANGUAGES.values()])
-def set_language(message):
-    user_preferences[message.from_user.id] = message.text
-    bot.reply_to(message, f"✅ បានកំណត់យក៖ **{message.text}**\nឥឡូវផ្ញើអក្សរមកចុះ!", parse_mode='Markdown')
+    text = (
+        f"សួស្តី **{user_name}**! 👋\n\n"
+        "សូមស្វាគមន៍មកកាន់ **AI Dashboard Bot**។\n"
+        "សូមជ្រើសរើសមុខងារដែលអ្នកចង់ប្រើប្រាស់ខាងក្រោម៖"
+    )
+    bot.send_message(message.chat.id, text, parse_mode='Markdown', reply_markup=get_main_dashboard())
 
-@bot.message_handler(content_types=['text'])
-def handle_text(message):
-    if message.text.startswith('/'): return
+# ទទួលការចុចលើប៊ូតុង (Callback Query)
+@bot.callback_query_handler(func=lambda call: True)
+def handle_query(call):
+    chat_id = call.message.chat.id
     
-    target_code = get_target_lang_code(message.from_user.id)
-    target_name = user_preferences.get(message.from_user.id, 'ខ្មែរ 🇰🇭')
-    
-    bot.send_chat_action(message.chat.id, 'typing')
-    translated = smart_translate(message.text, target_code)
-    
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🔊 ស្តាប់សំឡេង", callback_data=f"tts_{target_code}"))
-    
-    bot.reply_to(message, f"🎯 **{target_name}:**\n\n{translated}", parse_mode='Markdown', reply_markup=markup)
+    # 1. ត្រឡប់ទៅផ្ទាំងដើម (Dashboard)
+    if call.data == 'back_home':
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=call.message.message_id,
+            text="🏠 **ផ្ទាំងដើម (Dashboard)**\nសូមជ្រើសរើសមុខងារ៖",
+            parse_mode='Markdown',
+            reply_markup=get_main_dashboard()
+        )
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('tts_'))
-def callback_tts(call):
-    try:
-        lang_code = call.data.split('_')[1]
-        text = call.message.text.split('\n\n', 1)[-1]
-        bot.answer_callback_query(call.id, "កំពុងដំណើរការសំឡេង...")
-        bot.send_chat_action(call.message.chat.id, 'upload_voice')
-        tts = gTTS(text=text, lang=lang_code)
-        filename = f"voice_{call.from_user.id}.mp3"
-        tts.save(filename)
-        with open(filename, 'rb') as audio:
-            bot.send_voice(call.message.chat.id, audio)
-        os.remove(filename)
-    except Exception as e:
-        print(e)
-
-@bot.message_handler(content_types=['document'])
-def handle_docs(message):
-    try:
-        bot.reply_to(message, "📂 កំពុងអានឯកសារ...")
-        file_info = bot.get_file(message.document.file_id)
-        downloaded = bot.download_file(file_info.file_path)
-        temp = f"temp_{message.document.file_name}"
-        with open(temp, 'wb') as f: f.write(downloaded)
+    # 2. ចូលទៅម៉ឺនុយបកប្រែ (Translate Menu)
+    elif call.data == 'menu_translate':
+        current_lang = user_preferences.get(chat_id, 'km')
+        lang_name = LANGUAGES_MAP.get(current_lang, current_lang)
         
-        ext = os.path.splitext(temp)[1].lower()
-        text = ""
-        if ext == '.docx': text = "\n".join([p.text for p in Document(temp).paragraphs])
-        elif ext == '.pdf': 
-            try: text = "".join([p.extract_text() for p in PdfReader(temp).pages])
-            except: pass
-        elif ext == '.txt':
-            with open(temp, 'r', encoding='utf-8') as f: text = f.read()
+        text = (
+            f"🔤 **មុខងារបកប្រែអក្សរ**\n\n"
+            f"ភាសាគោលដៅបច្ចុប្បន្នគឺ៖ **{lang_name}**\n"
+            "សូមជ្រើសរើសភាសាដែលអ្នកចង់បកប្រែទៅ៖"
+        )
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=call.message.message_id,
+            text=text,
+            parse_mode='Markdown',
+            reply_markup=get_language_keyboard()
+        )
 
-        if text.strip():
-            bot.reply_to(message, "🔄 កំពុងបកប្រែ...")
-            target = get_target_lang_code(message.from_user.id)
-            translated = smart_translate(text, target)
-            out_file = f"Translated_{message.document.file_name}.txt"
-            with open(out_file, 'w', encoding='utf-8') as f: f.write(translated)
-            with open(out_file, 'rb') as f:
-                bot.send_document(message.chat.id, f, caption="✅ រួចរាល់!")
-            os.remove(out_file)
-        else:
-            bot.reply_to(message, "❌ អានអក្សរមិនបាន។")
-        if os.path.exists(temp): os.remove(temp)
+    # 3. ការកំណត់ភាសា (Set Language)
+    elif call.data.startswith('set_lang_'):
+        lang_code = call.data.split('_')[2]
+        user_preferences[chat_id] = lang_code # រក្សាទុកភាសាដែលបានរើស
+        lang_name = LANGUAGES_MAP.get(lang_code)
+        
+        bot.answer_callback_query(call.id, f"បានប្តូរទៅជាភាសា {lang_name}")
+        bot.send_message(
+            chat_id, 
+            f"✅ បានកំណត់បកប្រែទៅជា៖ **{lang_name}**\n\nសូមផ្ញើសារ ឬអត្ថបទមក ខ្ញុំនឹងបកប្រែជូនភ្លាមៗ។ 👇",
+            parse_mode='Markdown'
+        )
+
+    # 4. មុខងារផ្សេងៗ (Placeholder)
+    elif call.data in ['menu_photo', 'menu_voice']:
+        bot.answer_callback_query(call.id, "មុខងារនេះកំពុងអភិវឌ្ឍន៍", show_alert=True)
+    
+    elif call.data == 'menu_info':
+        info_text = "🤖 **អំពី Bot**\n\nBot នេះបង្កើតឡើងដើម្បីជួយសម្រួលការងារបកប្រែ និងការងាររដ្ឋបាលផ្សេងៗ។\nCreate by: Sinan"
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=call.message.message_id,
+            text=info_text,
+            parse_mode='Markdown',
+            reply_markup=get_back_home_btn()
+        )
+
+# ទទួលសារជាអក្សរ និងធ្វើការបកប្រែ
+@bot.message_handler(func=lambda message: True)
+def handle_text(message):
+    chat_id = message.chat.id
+    dest_lang = user_preferences.get(chat_id, 'km') # យកភាសាដែលបានកំណត់ (default: km)
+    
+    try:
+        # បង្ហាញ status ថា "typing..."
+        bot.send_chat_action(chat_id, 'typing')
+        
+        # ធ្វើការបកប្រែ
+        translated = translator.translate(message.text, dest=dest_lang)
+        
+        reply_text = (
+            f"🔤 **លទ្ធផលបកប្រែ ({LANGUAGES_MAP.get(dest_lang, dest_lang)}):**\n"
+            f"-------------------\n"
+            f"{translated.text}"
+        )
+        
+        # បង្ហាញប៊ូតុងសម្រាប់ប្តូរភាសាវិញនៅខាងក្រោមសារ
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔄 ប្តូរភាសា", callback_data='menu_translate'))
+        
+        bot.reply_to(message, reply_text, parse_mode='Markdown', reply_markup=markup)
+        
     except Exception as e:
-        bot.reply_to(message, f"Error: {e}")
+        bot.reply_to(message, "សូមអភ័យទោស មានបញ្ហាក្នុងការបកប្រែ។ សូមព្យាយាមម្តងទៀត។")
+        print(f"Error: {e}")
 
-if __name__ == "__main__":
-    t = threading.Thread(target=run_web_server)
-    t.start()
-    bot.infinity_polling()
+# ==========================================
+# ៤. ចាប់ផ្តើម BOT
+# ==========================================
+print("Bot is running...")
+bot.infinity_polling()

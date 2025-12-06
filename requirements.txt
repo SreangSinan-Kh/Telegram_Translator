@@ -1,0 +1,8 @@
+pyTelegramBotAPI
+deep-translator
+gTTS
+flask
+pandas
+openpyxl
+pypdf
+python-docx

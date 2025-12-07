@@ -162,7 +162,7 @@ def send_welcome(message):
     
     caption_text = (
         f"សួស្តី/ជម្រាបសួរបង **{message.from_user.last_name}**! 👋\n\n"
-        "ខ្ញុំគឺជាមនុស្សយន្ត **សម្រាប់បកប្រែភាសារ ដែលបង្កើតដោយបង ស្រ៊ាង ស៊ីណាន** 📁\n"
+        "ខ្ញុំគឺជាមនុស្សយន្ត **សម្រាប់បកប្រែភាសារ ដែលបង្កើតដោយបង ស្រ៊ាង ស៊ីណាន** \n"
         "ខ្ញុំអាចអាន និងបកប្រែឯកសារជាច្រើនប្រភេទ៖\n"
         "📄 Word, 📕 PDF, 📊 Excel, 📽️ PPT, 📝 Text\n\n"
         "👇 **សូមជ្រើសរើសមុខងារខាងក្រោម៖**"
@@ -222,7 +222,7 @@ def handle_query(call):
         bot.send_message(chat_id, f"✅ បានកំណត់ភាសា **{LANGUAGES_MAP.get(code)}** រួចរាល់!", parse_mode='Markdown')
 
     elif call.data == 'menu_info':
-        bot.send_message(chat_id, "🤖 **Bot Info**\nSupports: PDF, DOCX, XLSX, PPTX, TXT\nDev: Sinan", reply_markup=get_back_home_btn())
+        bot.send_message(chat_id, "🤖 **Bot Info**\nSupports: PDF, DOCX, XLSX, PPTX, TXT\nVersion:2.0\nTel:087533780\nDevelop By: Sreang_Sinan", reply_markup=get_back_home_btn())
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_text(message):
@@ -267,3 +267,4 @@ try:
     bot.infinity_polling()
 except:
     pass
+

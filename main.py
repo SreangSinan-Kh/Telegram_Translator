@@ -116,7 +116,7 @@ def send_welcome(message):
         user_preferences[message.chat.id] = 'km'
     
     caption_text = (
-        f"សួស្តី **{message.from_user.first_name}**! 👋\n\n"
+        f"សួស្តី **{message.from_user.last_name}**! 👋\n\n"
         "សូមស្វាគមន៍មកកាន់ **Smart Translator Bot ដែលបង្កើតដោយលោក ស៊ីណាន** 🚀\n"
         "ខ្ញុំអាចជួយអ្នកបកប្រែអក្សរ រូបភាព និងឯកសារ (Word/PDF) បានយ៉ាងងាយស្រួល។\n\n"
         "👇 **សូមជ្រើសរើសមុខងារខាងក្រោម៖**"
@@ -217,5 +217,6 @@ try:
     bot.infinity_polling()
 except:
     pass
+
 
 

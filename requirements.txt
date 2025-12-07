@@ -4,3 +4,5 @@ flask
 gTTS
 PyPDF2
 python-docx
+openpyxl
+python-pptx

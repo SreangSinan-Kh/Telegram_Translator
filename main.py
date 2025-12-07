@@ -20,7 +20,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot is running with Multi-File Support!"
+    return "Bot is running with Commands & File Support!"
 
 def run():
   app.run(host='0.0.0.0', port=8080)
@@ -54,7 +54,7 @@ LANGUAGES_MAP = {
 }
 
 # ==========================================
-# ៣. DASHBOARD
+# ៣. DASHBOARD & KEYBOARDS
 # ==========================================
 def get_main_dashboard():
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -80,7 +80,7 @@ def get_back_home_btn():
     return markup
 
 # ==========================================
-# ៤. មុខងារជំនួយ
+# ៤. មុខងារជំនួយ (HELPER FUNCTIONS)
 # ==========================================
 def split_message(text, limit=4000):
     return [text[i:i+limit] for i in range(0, len(text), limit)]
@@ -120,29 +120,24 @@ def translate_and_reply(message, text_to_translate):
 # ==========================================
 def read_file_content(file_bytes, file_ext):
     text = ""
-    
     # 1. PDF
     if file_ext == '.pdf':
         read_pdf = PyPDF2.PdfReader(io.BytesIO(file_bytes))
         for page in read_pdf.pages:
             text += page.extract_text() + "\n"
-
     # 2. Word (.docx)
     elif file_ext == '.docx':
         doc = docx.Document(io.BytesIO(file_bytes))
         for para in doc.paragraphs:
             text += para.text + "\n"
-
     # 3. Excel (.xlsx)
     elif file_ext == '.xlsx':
         wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
         for sheet in wb.worksheets:
             text += f"\n--- Sheet: {sheet.title} ---\n"
             for row in sheet.iter_rows(values_only=True):
-                # យកអក្សរពី Cell នីមួយៗមកតគ្នា
                 row_text = " | ".join([str(cell) for cell in row if cell is not None])
                 text += row_text + "\n"
-
     # 4. PowerPoint (.pptx)
     elif file_ext == '.pptx':
         prs = Presentation(io.BytesIO(file_bytes))
@@ -150,32 +145,28 @@ def read_file_content(file_bytes, file_ext):
             for shape in slide.shapes:
                 if hasattr(shape, "text"):
                     text += shape.text + "\n"
-
     # 5. Text File (.txt)
     elif file_ext == '.txt':
         text = file_bytes.decode('utf-8')
-
     return text
 
 # ==========================================
-# ៦. HANDLERS
+# ៦. COMMAND HANDLERS (ដោះស្រាយបញ្ហា /help, /lang)
 # ==========================================
+
+# --- /start ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     if message.chat.id not in user_preferences:
         user_preferences[message.chat.id] = 'km'
     
     caption_text = (
-        f"សម្រាប់សួរបង **{message.from_user.last_name}**! 👋\n\n"
-        "សូមស្វាគមន៍មកកាន់ ** Botសម្រាប់បកប្រែភាសារ ដែលបង្កើតដោយលោក ស៊ីណាន** 📁\n"
+        f"សួស្តី/ជម្រាបសួរបង **{message.from_user.last_name}**! 👋\n\n"
+        "ខ្ញុំគឺជាមនុស្សយន្ត **សម្រាប់បកប្រែភាសារ ដែលបង្កើតដោយបង ស្រ៊ាង ស៊ីណាន** 📁\n"
         "ខ្ញុំអាចអាន និងបកប្រែឯកសារជាច្រើនប្រភេទ៖\n"
-        "📄 Word (.docx)\n"
-        "📕 PDF (.pdf)\n"
-        "📊 Excel (.xlsx)\n"
-        "📽️ PowerPoint (.pptx)\n"
-        "📝 Text (.txt)\n\n"
+        "📄 Word, 📕 PDF, 📊 Excel, 📽️ PPT, 📝 Text\n\n"
+        "👇 **សូមជ្រើសរើសមុខងារខាងក្រោម៖**"
     )
-    
     bot.send_photo(
         message.chat.id, 
         BANNER_IMAGE_URL, 
@@ -184,6 +175,28 @@ def send_welcome(message):
         reply_markup=get_main_dashboard()
     )
 
+# --- /help ---
+@bot.message_handler(commands=['help'])
+def send_help(message):
+    help_text = (
+        "ℹ️ **ជំនួយ (Help)**\n\n"
+        "1. **Start**: វាយ /start ដើម្បីបើក Menu ដើម។\n"
+        "2. **ប្តូរភាសា**: វាយ /lang ឬចុចលើប៊ូតុងក្នុង Menu។\n"
+        "3. **បកប្រែ**: គ្រាន់តែផ្ញើអក្សរ ឬឯកសារ (Word, PDF, Excel...) មក ខ្ញុំនឹងបកប្រែជូន។"
+    )
+    bot.reply_to(message, help_text, parse_mode='Markdown')
+
+# --- /lang ---
+@bot.message_handler(commands=['lang', 'language'])
+def send_language_menu(message):
+    chat_id = message.chat.id
+    current_lang = LANGUAGES_MAP.get(user_preferences.get(chat_id, 'km'))
+    text = f"🔤 **ប្តូរភាសា**\nភាសាបច្ចុប្បន្ន៖ **{current_lang}**\n\nសូមជ្រើសរើសភាសាដែលចង់បកប្រែទៅ៖"
+    bot.send_message(chat_id, text, reply_markup=get_language_keyboard(), parse_mode='Markdown')
+
+# ==========================================
+# ៧. CALLBACK & CONTENT HANDLERS
+# ==========================================
 @bot.callback_query_handler(func=lambda call: True)
 def handle_query(call):
     chat_id = call.message.chat.id
@@ -193,11 +206,11 @@ def handle_query(call):
         send_welcome(call.message) 
         
     elif call.data == 'menu_translate':
-        current = LANGUAGES_MAP.get(user_preferences.get(chat_id, 'km'))
-        bot.send_message(chat_id, f"🔤 **បកប្រែអក្សរ**\nភាសាបច្ចុប្បន្ន៖ **{current}**\nសូមជ្រើសរើសភាសាគោលដៅ៖", reply_markup=get_language_keyboard(), parse_mode='Markdown')
+        # ហៅ Function /lang មកប្រើវិញ ដើម្បីកុំឱ្យសរសេរកូដស្ទួន
+        send_language_menu(call.message)
         
     elif call.data == 'menu_file':
-        bot.send_message(chat_id, "📂 **បកប្រែឯកសារ**\n\nសូមផ្ញើ File មកខ្ញុំ (Word, Excel, PDF, PPT, TXT)។\nខ្ញុំនឹងអានអក្សរហើយបកប្រែជូន!", reply_markup=get_back_home_btn(), parse_mode='Markdown')
+        bot.send_message(chat_id, "📂 **បកប្រែឯកសារ**\n\nសូមផ្ញើ File មកខ្ញុំ (Word, Excel, PDF, PPT, TXT)។", reply_markup=get_back_home_btn(), parse_mode='Markdown')
         
     elif call.data == 'menu_voice':
          bot.send_message(chat_id, "🎙️ **មុខងារសំឡេង**\n\nផ្ញើអក្សរមក ខ្ញុំនឹងអានជូន។", reply_markup=get_back_home_btn())
@@ -209,25 +222,24 @@ def handle_query(call):
         bot.send_message(chat_id, f"✅ បានកំណត់ភាសា **{LANGUAGES_MAP.get(code)}** រួចរាល់!", parse_mode='Markdown')
 
     elif call.data == 'menu_info':
-        bot.send_message(chat_id, "🤖 **Bot Info**\nSupports: PDF, DOCX, XLSX, PPTX, TXT", reply_markup=get_back_home_btn())
+        bot.send_message(chat_id, "🤖 **Bot Info**\nSupports: PDF, DOCX, XLSX, PPTX, TXT\nDev: Sinan", reply_markup=get_back_home_btn())
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_text(message):
-    translate_and_reply(message, message.text)
+    # បើមិនមែនជា Command ទេ ទើបយកមកបកប្រែ
+    if not message.text.startswith('/'):
+        translate_and_reply(message, message.text)
 
-# --- ផ្នែកទទួលឯកសារគ្រប់ប្រភេទ ---
 @bot.message_handler(content_types=['document'])
 def handle_docs(message):
     chat_id = message.chat.id
     try:
         file_name = message.document.file_name
         file_ext = os.path.splitext(file_name)[1].lower()
-        
-        # បញ្ជី File ដែលស្គាល់
         supported_exts = ['.pdf', '.docx', '.xlsx', '.pptx', '.txt']
 
         if file_ext not in supported_exts:
-            bot.reply_to(message, f"⚠️ ខ្ញុំមិនស្គាល់ File ប្រភេទ `{file_ext}` ទេ។\nខ្ញុំស្គាល់តែ៖ Word, Excel, PDF, PPT, Text ។", parse_mode='Markdown')
+            bot.reply_to(message, f"⚠️ ខ្ញុំមិនស្គាល់ File ប្រភេទ `{file_ext}` ទេ។", parse_mode='Markdown')
             return
 
         bot.send_chat_action(chat_id, 'upload_document')
@@ -235,8 +247,6 @@ def handle_docs(message):
 
         file_info = bot.get_file(message.document.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-
-        # ហៅមុខងារអានឯកសារដែលយើងបានបង្កើតខាងលើ
         extracted_text = read_file_content(downloaded_file, file_ext)
 
         if len(extracted_text.strip()) == 0:
@@ -250,7 +260,7 @@ def handle_docs(message):
         bot.reply_to(message, f"❌ មានបញ្ហាក្នុងការអានឯកសារ៖ {e}")
 
 # ==========================================
-# ៦. RUN
+# ៨. RUN
 # ==========================================
 keep_alive()
 try:
